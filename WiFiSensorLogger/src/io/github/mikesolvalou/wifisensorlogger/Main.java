@@ -14,11 +14,17 @@ public class Main {
 		if(!(new File("C:/sqlite/sensordata.sl3").exists())) {
 			initDb();
 		}
+		//else, presume the tables are already created
 		
-		//start waiting for incoming TCP connections
-		//when a connection req comes in, start a new thread to handle it
-		//client should send some data, then close the connection when it's done
-		//may need to write something to db in response to what comes in
+		//start listening for TCP connection requests; on another thread, because it blocks
+		// when a connection request comes in, start a new thread to handle it
+		// client should send some data, then close the connection when it's done
+		// usually write something to db in response to what comes in
+		new TCPListenerThread().start();
+		
+		
+		
+
 		
 		//also start a jetty server to respond to http reqs for webpages and data?
 	}
@@ -27,7 +33,7 @@ public class Main {
 	/**connect to database and create tables*/
 	private static void initDb() {
 		try(Connection conn = DriverManager.getConnection("jdbc:sqlite:C:/sqlite/sensordata.sl3");
-			Statement stmt = conn.createStatement()){
+				Statement stmt = conn.createStatement()) {
 			
 			stmt.execute("CREATE TABLE Sensors(id INTEGER PRIMARY KEY, model TEXT, serial BLOB);");
 			stmt.execute("CREATE TABLE Locations(id INTEGER PRIMARY KEY, " + 
@@ -45,7 +51,7 @@ public class Main {
 					" temperature REAL NOT NULL," + 
 					" PRIMARY KEY(sensor, timestamp));");
 		}
-		catch (SQLException e) {
+		catch(SQLException e) {
 			e.printStackTrace();
 		}
 	}
