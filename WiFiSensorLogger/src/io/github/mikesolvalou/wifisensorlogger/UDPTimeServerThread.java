@@ -20,14 +20,19 @@ public class UDPTimeServerThread extends Thread {
 				socket.receive(packet);
 				
 				InetAddress origin = packet.getAddress();
-				long unixTime = Instant.now().getEpochSecond();
-				byte[] tBuf = {rBuf[0], (byte) unixTime,
-						(byte) (unixTime>>8),
-						(byte) (unixTime>>16),
-						(byte) (unixTime>>24)};
 				
-				DatagramPacket packet2 = new DatagramPacket(tBuf, 5, origin, 8007);
+				//time critical processing start
+				Instant now = Instant.now();
+				long unixTime = now.getEpochSecond();
+				int unixTimeMs = now.getNano()/1000000;
+				
+				byte[] tBuf = {rBuf[0], (byte) unixTime, (byte) (unixTime>>8),
+						(byte) (unixTime>>16), (byte) (unixTime>>24),
+						(byte) unixTimeMs, (byte) (unixTimeMs>>8) };
+				
+				DatagramPacket packet2 = new DatagramPacket(tBuf, 7, origin, 8007);
 				socket.send(packet2);
+				//time critical processing done
 			}
 		}
 		catch (SocketException e) {
