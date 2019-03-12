@@ -22,15 +22,17 @@ byte lastTimeSyncVerif=0; //last number used as verification
 //FOR TIME SYNC TESTING
 unsigned long timeLastMessageSent=0;
 
+unsigned long timeLastLogSent=0;
+
 
 void setup() {
-  //connect to home network //TODO: handle WiFi connection loss later? doesn't seem to actually happen...
+  //connect to home network //TODO: handle WiFi connection loss? doesn't seem to actually happen...
   WiFi.begin(NETWORK_NAME, NETWORK_PASSWORD);
   while(WiFi.status() != WL_CONNECTED){
     delay(1000);
   }
 
-  //start listening for UDP datagrams on port 8007
+  //start listening for UDP datagrams on port 8007; outgoing datagrams also use this port number
   udp.begin(8007);
 
   //send a UDP datagram requesting the unix time, to a server on the LAN
@@ -40,8 +42,8 @@ void setup() {
 void loop() {
   unsigned long currentTime=millis(); //current time; as time in ms from power on
   
-  //if there is a new datagram containing the current unix time, and it has been less than 300ms since the last request
-  if(udp.parsePacket()!=0 && currentTime-timeLastTimeReq<300){
+  //if there is a new datagram containing the current unix time, and it has been less than 100ms since the last request
+  if(udp.parsePacket()!=0 && currentTime-timeLastTimeReq<100){
     byte buf[7];
     udp.read(buf, 7);
 
@@ -50,7 +52,7 @@ void loop() {
       // if anything, the delay between now and the last call of millis() cancels some of the latency to the time server
       timeLastTimeSync=currentTime;
 
-      //this actually doesn't need casts to unsigned long
+      //these actually don't need casts to unsigned long
       unixTimeLastSync = buf[1] | (buf[2]<<8) | (buf[3]<<16) | (buf[4]<<24);
       unixTimeLastSyncMs = buf[5] | buf[6]<<8;
       
@@ -63,8 +65,8 @@ void loop() {
   unsigned short currentUnixTimeMs = (unixTimeLastSyncMs+currentTime-timeLastTimeSync)%1000;
 
   //if (over 30 minutes since the last time sync, OR, time isn't set),
-  // AND over 10 seconds since the last time sync request
-  if((currentTime-timeLastTimeSync > 1800000UL || !isTimeSet) && currentTime-timeLastTimeReq > 10000){
+  // AND over 4 seconds since the last time sync request
+  if((currentTime-timeLastTimeSync > 1800000UL || !isTimeSet) && currentTime-timeLastTimeReq > 4000){
     //send another datagram requesting the unix time
     requestUnixTime();
   }
@@ -74,11 +76,7 @@ void loop() {
     return;
   }
 
-  //every 60s, start temperature conversion; record current unix time, to be used as timestamp for this measurement
-  //TODO
-
-
-  //TIME SYNC TESTING: every 5s, send the ESP-01's estimate of unix time in a UDP datagram back to the server
+  //TIME SYNC TESTING: every 5s, send the ESP-01's estimate of unix time in a UDP datagram to a monitoring program
   if(currentTime - timeLastMessageSent > 5000){
     IPAddress timeServer(192,168,1,5);
     unsigned long millisNow = millis();
@@ -96,6 +94,16 @@ void loop() {
       timeLastMessageSent+=5000;
   }
 
+
+  //every 60s, start temperature conversion; record current unix time, to be used as timestamp for this measurement
+  //TODO
+
+
+  if(currentTime-timeLastLogSent>6000){  //uses a random local port
+    printlnTCP("hello");
+    timeLastLogSent=currentTime;
+  }
+
 }
 
 
@@ -107,4 +115,14 @@ void requestUnixTime(){
   udp.write(++lastTimeSyncVerif);
   udp.endPacket();
   timeLastTimeReq=millis();
+}
+
+
+/**Send a character string to the server via a temporary TCP connection, to be printed to the server's standard out.*/
+void printlnTCP(String content){
+  if(client.connect("192.168.1.5", 8009)){
+    client.println(content);
+    client.flush();
+    client.stop();
+  }
 }

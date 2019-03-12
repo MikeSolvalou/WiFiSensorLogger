@@ -9,23 +9,26 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
+/**Thread to receive data from a remote sensor and store it in the database.*/
 public class TCPDataReceiverThread extends Thread {
 	
-	private Socket clientSocket;	//socket to connected ESP-01
+	private Socket clientSocket;	//socket to remote device
 	
 	public TCPDataReceiverThread(Socket clientSocket) {
 		this.clientSocket = clientSocket;
 	}
 
 	public void run() {
-		//open Writer and Reader to send/receive data through Socket
-		try(PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);	//might not be needed...
+		//open Writer and Reader to send/receive chars through Socket
+		try(PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);	//might not need out...
 				BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())) ){
 			
-			String inputLine;
-			while ((inputLine = in.readLine()) != null) {
-				System.out.println("Rx: "+inputLine);	//just print to std out for now
+			for(int nextChar=in.read(); in.read()!=-1; nextChar=in.read()) {
+				char c = (char)nextChar;
 			}
+			
+			System.out.printf("Connection closed. remote address: %s, remote port: %d%n%n",
+					clientSocket.getInetAddress(), clientSocket.getPort());
 		}
 		catch (IOException e) {
 			e.printStackTrace();

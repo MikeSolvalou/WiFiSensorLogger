@@ -24,6 +24,9 @@ public class Main {
 		
 		//start listening for datagrams requesting the current unix time
 		new UDPTimeServerThread().start();
+		
+		//start listening for strings delivered via TCP, to be printed to std out.
+		new TCPLoggerThread().start();
 
 		
 		//also start a jetty server to respond to http reqs for webpages and data?

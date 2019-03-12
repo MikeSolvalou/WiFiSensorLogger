@@ -18,7 +18,7 @@ public class UDPTimeServerThread extends Thread {
 				
 				//blocks until datagram arrives
 				socket.receive(packet);
-				
+				System.out.printf("Got time request from %s port %d.%n", packet.getAddress(), packet.getPort());
 				InetAddress origin = packet.getAddress();
 				
 				//time critical processing start
@@ -34,10 +34,6 @@ public class UDPTimeServerThread extends Thread {
 				socket.send(packet2);
 				//time critical processing done
 			}
-		}
-		catch (SocketException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
 		catch (IOException e) {
 			// TODO Auto-generated catch block
