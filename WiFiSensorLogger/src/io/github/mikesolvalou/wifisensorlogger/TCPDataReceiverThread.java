@@ -23,9 +23,22 @@ public class TCPDataReceiverThread extends Thread {
 		try(PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);	//might not need out...
 				BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream())) ){
 			
-			for(int nextChar=in.read(); in.read()!=-1; nextChar=in.read()) {
-				char c = (char)nextChar;
-			}
+			//ESP-01 sends bytes, InputStream reads bytes
+			//use counter to count bytes until end of stream; indicate error if too many or too few were sent
+			
+			//1 byte for sensor id
+			//next 4 bytes for unix time, whole seconds only, lsB first
+			//next byte = 'T' for temperature (in Celsius), or 'H' for humidity (unitless)
+			//next 4 bytes for float of measurement, lsB first
+			//10 bytes total
+			
+			//sanity checks:
+			//sensor id under 100
+			//unix time over some value
+			//temperature between 0 and 50
+			//humidity between 0 and 1
+			
+			//insert row into database
 			
 			System.out.printf("Connection closed. remote address: %s, remote port: %d%n%n",
 					clientSocket.getInetAddress(), clientSocket.getPort());

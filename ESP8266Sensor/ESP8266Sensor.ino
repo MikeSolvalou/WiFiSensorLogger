@@ -1,12 +1,21 @@
+//derived from https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html
+//and https://tttapa.github.io/ESP8266/Chap07%20-%20Wi-Fi%20Connections.html
+
+//#include <Adafruit_Sensor.h>
+//#include <DHT.h>
+#include <DallasTemperature.h>
+#include <OneWire.h>
+
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include "WiFiCredentials.h"  //git is set to ignore this file
 
-//derived from https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html
-//and https://tttapa.github.io/ESP8266/Chap07%20-%20Wi-Fi%20Connections.html
+#define SENSOR_ID 1 //the id # of the sensor connected to this device; used to id measurements in the database
+
 
 WiFiClient client;  //represents TCP connection from this device to server
 WiFiUDP udp;  //use to send/receive UDP datagrams
+
 
 bool isTimeSet=false; //does the ESP-01 have a good estimate of what the unix time is?
 unsigned long timeLastTimeReq;  //time that last datagram requesting the unix time was sent; as time in ms from power on
@@ -18,11 +27,19 @@ unsigned int unixTimeLastSyncMs; //'milliseconds of second' part of unix time fr
 //send a byte with every UDP datagram requesting the current unix time, in order to match sent datagrams to received ones
 byte lastTimeSyncVerif=0; //last number used as verification
 
+//unsigned long timeLastMessageSent=0;  //FOR TIME SYNC TESTING
 
-//FOR TIME SYNC TESTING
-unsigned long timeLastMessageSent=0;
 
-unsigned long timeLastLogSent=0;
+//for DHT-11 sensor
+/*DHT dht(2, DHT11);  //DHT-11 sensor connected on pin GPIO2
+unsigned long timeLastTempReading=0;  //time of last temperature reading, as ms since power on*/
+
+
+//for DS18x series sensors
+OneWire oneWire(2); //represents onewire bus on GPIO2
+DallasTemperature tempSensor(&oneWire); //represents temperature sensor on onewire bus
+unsigned long timeLastConvStart=0;
+bool conversionStarted=false;
 
 
 void setup() {
@@ -34,6 +51,14 @@ void setup() {
 
   //start listening for UDP datagrams on port 8007; outgoing datagrams also use this port number
   udp.begin(8007);
+
+  //for DHT-11 sensor
+  /*dht.begin();*/
+
+  //for DS18x20 series sensors
+  tempSensor.setResolution(12);  //12 bits = 1/16 C resolution?
+  tempSensor.setWaitForConversion(false);
+  tempSensor.begin();
 
   //send a UDP datagram requesting the unix time, to a server on the LAN
   requestUnixTime();
@@ -48,11 +73,12 @@ void loop() {
     udp.read(buf, 7);
 
     if(buf[0]==lastTimeSyncVerif){  //if the verification byte matches
-      //don't call millis() again to get the current time
+      //record the time that this datagram was received
+      // don't call millis() again to get the current time
       // if anything, the delay between now and the last call of millis() cancels some of the latency to the time server
       timeLastTimeSync=currentTime;
 
-      //these actually don't need casts to unsigned long
+      // these actually don't need casts to unsigned long
       unixTimeLastSync = buf[1] | (buf[2]<<8) | (buf[3]<<16) | (buf[4]<<24);
       unixTimeLastSyncMs = buf[5] | buf[6]<<8;
       
@@ -60,13 +86,9 @@ void loop() {
     }
   }
 
-  //unix time at start of this loop
-  unsigned long currentUnixTime = unixTimeLastSync+(unixTimeLastSyncMs+currentTime-timeLastTimeSync)/1000;
-  unsigned short currentUnixTimeMs = (unixTimeLastSyncMs+currentTime-timeLastTimeSync)%1000;
-
-  //if (over 30 minutes since the last time sync, OR, time isn't set),
+  //if (over 60 minutes since the last time sync, OR, time isn't set),
   // AND over 4 seconds since the last time sync request
-  if((currentTime-timeLastTimeSync > 1800000UL || !isTimeSet) && currentTime-timeLastTimeReq > 4000){
+  if((currentTime-timeLastTimeSync > 3600000UL || !isTimeSet) && currentTime-timeLastTimeReq > 4000){
     //send another datagram requesting the unix time
     requestUnixTime();
   }
@@ -76,8 +98,13 @@ void loop() {
     return;
   }
 
-  //TIME SYNC TESTING: every 5s, send the ESP-01's estimate of unix time in a UDP datagram to a monitoring program
-  if(currentTime - timeLastMessageSent > 5000){
+  //unix time at start of this loop
+  unsigned long currentUnixTime = unixTimeLastSync+(unixTimeLastSyncMs+currentTime-timeLastTimeSync)/1000;
+  unsigned short currentUnixTimeMs = (unixTimeLastSyncMs+currentTime-timeLastTimeSync)%1000;
+
+
+  //TIME SYNC TESTING: every 5s, send the ESP-01's estimate of unix time in a UDP datagram to a monitoring program at 192.168.1.5:8008
+  /*if(currentTime - timeLastMessageSent > 5000){
     IPAddress timeServer(192,168,1,5);
     unsigned long millisNow = millis();
     unsigned long esp01UnixTime = unixTimeLastSync+(unixTimeLastSyncMs+millisNow-timeLastTimeSync)/1000;
@@ -92,16 +119,41 @@ void loop() {
     else
       //adding 5000 instead of assigning currentTime makes the 5s period between datagrams more accurate
       timeLastMessageSent+=5000;
+  }*/
+
+
+  //for DHT-11 sensor
+  //every 5s, get temperature, then send to server
+  /*if(currentTime-timeLastTempReading > 5000){
+    timeLastTempReading = currentTime;
+
+    //do this after since it blocks the main loop for about 250ms
+    //float temperature = dht.readTemperature();
+    bool success = dht.read(true);
+
+    //printlnTCP(String(temperature));
+    if(success)
+      printlnTCP("true");
+    else
+      printlnTCP("false");
+  }*/
+
+
+  //for DS18x series sensor
+  //every 5s, start temperature A->D conversion
+  if(currentTime-timeLastConvStart > 5000){
+    tempSensor.requestTemperatures(); //asks all sensors on onewire bus to start A->D conversion
+    conversionStarted=true;
+
+    timeLastConvStart = currentTime;
   }
 
-
-  //every 60s, start temperature conversion; record current unix time, to be used as timestamp for this measurement
-  //TODO
-
-
-  if(currentTime-timeLastLogSent>6000){  //uses a random local port
-    printlnTCP("hello");
-    timeLastLogSent=currentTime;
+  //900ms after A->D conversion started, read temperature and print over TCP
+  if(conversionStarted==true && currentTime-timeLastConvStart > 900){
+    conversionStarted=false;
+    
+    float temperature = tempSensor.getTempCByIndex(0);
+    printlnTCP(String(temperature));
   }
 
 }
