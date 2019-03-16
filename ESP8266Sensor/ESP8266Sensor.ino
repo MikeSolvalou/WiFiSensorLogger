@@ -1,16 +1,30 @@
 //derived from https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/readme.html
 //and https://tttapa.github.io/ESP8266/Chap07%20-%20Wi-Fi%20Connections.html
+//and http://www.cplusplus.com/doc/tutorial/preprocessor/
 
-//#include <Adafruit_Sensor.h>
-//#include <DHT.h>
-#include <DallasTemperature.h>
-#include <OneWire.h>
+
+#define DS18B20 1
+#define DHT11 2
+
+
+//uncomment the type of sensor being used
+#define SENSOR_TYPE DS18B20
+//#define SENSOR_TYPE DHT11
+
+//set the ID number of this sensor
+#define SENSOR_ID 0 //the id # of the sensor connected to this device; used to id measurements in the database
+
+
+#if SENSOR_TYPE==DHT11
+ #include <DHT.h>
+#elif SENSOR_TYPE==DS18B20
+ #include <DallasTemperature.h>
+ #include <OneWire.h>
+#endif
 
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include "WiFiCredentials.h"  //git is set to ignore this file
-
-#define SENSOR_ID 1 //the id # of the sensor connected to this device; used to id measurements in the database
 
 
 WiFiClient client;  //represents TCP connection from this device to server
@@ -30,16 +44,17 @@ byte lastTimeSyncVerif=0; //last number used as verification
 //unsigned long timeLastMessageSent=0;  //FOR TIME SYNC TESTING
 
 
-//for DHT-11 sensor
-/*DHT dht(2, DHT11);  //DHT-11 sensor connected on pin GPIO2
-unsigned long timeLastTempReading=0;  //time of last temperature reading, as ms since power on*/
+#if SENSOR_TYPE==DHT11
+DHT dht(2, DHT11);  //DHT-11 sensor connected on pin GPIO2
+unsigned long timeLastTempReading=0;  //time of last temperature reading, as ms since power on
 
-
-//for DS18x series sensors
+#elif SENSOR_TYPE==DS18B20
 OneWire oneWire(2); //represents onewire bus on GPIO2
 DallasTemperature tempSensor(&oneWire); //represents temperature sensor on onewire bus
 unsigned long timeLastConvStart=0;
 bool conversionStarted=false;
+bool firstConversionStarted=false;
+#endif
 
 
 void setup() {
@@ -48,17 +63,19 @@ void setup() {
   while(WiFi.status() != WL_CONNECTED){
     delay(1000);
   }
+  printlnTCP("Connected.");
 
   //start listening for UDP datagrams on port 8007; outgoing datagrams also use this port number
   udp.begin(8007);
 
-  //for DHT-11 sensor
-  /*dht.begin();*/
+#if SENSOR_TYPE==DHT11
+  dht.begin();
 
-  //for DS18x20 series sensors
+#elif SENSOR_TYPE==DS18B20
   tempSensor.setResolution(12);  //12 bits = 1/16 C resolution?
   tempSensor.setWaitForConversion(false);
   tempSensor.begin();
+#endif
 
   //send a UDP datagram requesting the unix time, to a server on the LAN
   requestUnixTime();
@@ -98,9 +115,9 @@ void loop() {
     return;
   }
 
-  //unix time at start of this loop
-  unsigned long currentUnixTime = unixTimeLastSync+(unixTimeLastSyncMs+currentTime-timeLastTimeSync)/1000;
-  unsigned short currentUnixTimeMs = (unixTimeLastSyncMs+currentTime-timeLastTimeSync)%1000;
+  //unix time at start of this loop //don't need to do these calculations every loop
+  //unsigned long currentUnixTime = unixTimeLastSync+(unixTimeLastSyncMs+currentTime-timeLastTimeSync)/1000;
+  //unsigned short currentUnixTimeMs = (unixTimeLastSyncMs+currentTime-timeLastTimeSync)%1000;
 
 
   //TIME SYNC TESTING: every 5s, send the ESP-01's estimate of unix time in a UDP datagram to a monitoring program at 192.168.1.5:8008
@@ -122,39 +139,44 @@ void loop() {
   }*/
 
 
-  //for DHT-11 sensor
-  //every 5s, get temperature, then send to server
-  /*if(currentTime-timeLastTempReading > 5000){
+#if SENSOR_TYPE==DHT11
+  //every 10s, get temperature, then send to server
+  if(currentTime-timeLastTempReading > 10000){
     timeLastTempReading = currentTime;
 
     //do this after since it blocks the main loop for about 250ms
-    //float temperature = dht.readTemperature();
-    bool success = dht.read(true);
+    float temperature = dht.readTemperature();
 
-    //printlnTCP(String(temperature));
-    if(success)
-      printlnTCP("true");
-    else
-      printlnTCP("false");
-  }*/
+    printlnTCP(String(temperature));
+  }
 
-
-  //for DS18x series sensor
-  //every 5s, start temperature A->D conversion
-  if(currentTime-timeLastConvStart > 5000){
+#elif SENSOR_TYPE==DS18B20
+  //every 10s, start temperature A->D conversion
+  if(currentTime-timeLastConvStart > 10000 || !firstConversionStarted){
+    timeLastConvStart = currentTime;
+    
     tempSensor.requestTemperatures(); //asks all sensors on onewire bus to start A->D conversion
     conversionStarted=true;
-
-    timeLastConvStart = currentTime;
+    firstConversionStarted=true;
   }
 
   //900ms after A->D conversion started, read temperature and print over TCP
   if(conversionStarted==true && currentTime-timeLastConvStart > 900){
     conversionStarted=false;
-    
+
+    //compute unix timestamp for this temperature reading from timeLastConvStart
+    unsigned long timestamp = unixTimeLastSync+(unixTimeLastSyncMs+timeLastConvStart-timeLastTimeSync)/1000;
+    unsigned long timestampMs = (unixTimeLastSyncMs+timeLastConvStart-timeLastTimeSync)%1000;
+    if(timestampMs > 499)
+      timestamp++;
+
+    //get temperature reading
     float temperature = tempSensor.getTempCByIndex(0);
     printlnTCP(String(temperature));
+
+    //TODO: send timestamp and reading to server
   }
+#endif
 
 }
 
