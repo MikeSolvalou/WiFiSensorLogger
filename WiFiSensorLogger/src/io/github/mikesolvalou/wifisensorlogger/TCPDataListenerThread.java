@@ -8,7 +8,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 /**Thread to listen on port 8005 for TCP connection requests carrying sensor data to the server.*/
-public class TCPListenerThread extends Thread {
+public class TCPDataListenerThread extends Thread {
 	
 	public void run() {
 		System.out.println("TCP data listener thread started.");

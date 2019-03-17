@@ -20,7 +20,7 @@ public class Main {
 		// when a connection request comes in, start a new thread to handle it
 		// client should send some data, then close the connection when it's done
 		// usually write something to db in response to what comes in
-		new TCPListenerThread().start();
+		new TCPDataListenerThread().start();
 		
 		//start listening for datagrams requesting the current unix time
 		new UDPTimeServerThread().start();
