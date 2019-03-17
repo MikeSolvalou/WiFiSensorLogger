@@ -11,8 +11,13 @@
 #define SENSOR_TYPE DS18B20
 //#define SENSOR_TYPE DHT11
 
-//set the ID number of this sensor
-#define SENSOR_ID 0 //the id # of the sensor connected to this device; used to id measurements in the database
+//set the ID number of this sensor; reserve 0 for testing
+// Used to link a measurement in the database to the hardware that made it.
+// Allows cancellation of errors inherent to a particular combination of hardware.
+// Mounting the WiFi module too close to a temperature sensor (as done by ESP-01 compatible boards)
+// can add a few degrees C to the measurement, so mounting the WiFi module further away should count
+// as a hardware change, and get a different sensor id.
+#define SENSOR_ID 0
 
 
 #if SENSOR_TYPE==DHT11
@@ -24,7 +29,7 @@
 
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include "WiFiCredentials.h"  //git is set to ignore this file
+#include "WiFiCredentials.h"  //git is set to ignore this file, defines NETWORK_NAME and NETWORK_PASSWORD
 
 
 WiFiClient client;  //represents TCP connection from this device to server
@@ -40,6 +45,7 @@ unsigned int unixTimeLastSyncMs; //'milliseconds of second' part of unix time fr
 
 //send a byte with every UDP datagram requesting the current unix time, in order to match sent datagrams to received ones
 byte lastTimeSyncVerif=0; //last number used as verification
+
 
 //unsigned long timeLastMessageSent=0;  //FOR TIME SYNC TESTING
 
@@ -59,6 +65,7 @@ bool firstConversionStarted=false;
 
 void setup() {
   //connect to home network //TODO: handle WiFi connection loss? doesn't seem to actually happen...
+  WiFi.mode(WIFI_STA);  //permit auto modem sleep?, from https://github.com/esp8266/Arduino/issues/1381
   WiFi.begin(NETWORK_NAME, NETWORK_PASSWORD);
   while(WiFi.status() != WL_CONNECTED){
     delay(1000);
@@ -172,9 +179,27 @@ void loop() {
 
     //get temperature reading
     float temperature = tempSensor.getTempCByIndex(0);
-    printlnTCP(String(temperature));
 
-    //TODO: send timestamp and reading to server
+    //send timestamp and reading to server
+    if(client.connect("192.168.1.5", 8005)){
+      client.write((byte)SENSOR_ID);  //1st byte = sensor id
+      client.write(timestamp);  //next 4 bytes = timestamp, LSB first, whole seconds only
+      client.write(timestamp>>8);
+      client.write(timestamp>>16);
+      client.write(timestamp>>24);
+      client.write('T');  //next byte = letter T
+      //from https://stackoverflow.com/questions/11136408/extract-bits-from-32-bit-float-numbers-in-c
+      client.write( ((byte*)&temperature)[0] ); //next 4 bytes = float of temperature, LSB first
+      client.write( ((byte*)&temperature)[1] );
+      client.write( ((byte*)&temperature)[2] );
+      client.write( ((byte*)&temperature)[3] );
+      client.flush();
+      delay(2); //wait to ensure data goes through TCP connection?
+      client.stop();
+    }
+    else{ //could not establish TCP connection to server
+      //TODO: log temperature and timestamp to file, to be sent later, when TCP connection can be established
+    }
   }
 #endif
 
@@ -197,6 +222,7 @@ void printlnTCP(String content){
   if(client.connect("192.168.1.5", 8009)){
     client.println(content);
     client.flush();
+    delay(2); //wait to ensure data goes through TCP connection?
     client.stop();
   }
 }
