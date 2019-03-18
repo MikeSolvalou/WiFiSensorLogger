@@ -8,8 +8,8 @@
 
 
 //uncomment the type of sensor being used
-#define SENSOR_TYPE DS18B20
-//#define SENSOR_TYPE DHT11
+//#define SENSOR_TYPE DS18B20
+#define SENSOR_TYPE DHT11
 
 //set the ID number of this sensor; reserve 0 for testing
 // Used to link a measurement in the database to the hardware that made it.
@@ -17,7 +17,7 @@
 // Mounting the WiFi module too close to a temperature sensor (as done by ESP-01 compatible boards)
 // can add a few degrees C to the measurement, so mounting the WiFi module further away should count
 // as a hardware change, and get a different sensor id.
-#define SENSOR_ID 0
+#define SENSOR_ID 1
 
 
 #if SENSOR_TYPE==DHT11
@@ -151,10 +151,11 @@ void loop() {
   if(currentTime-timeLastTempReading > 10000){
     timeLastTempReading = currentTime;
 
-    //do this after since it blocks the main loop for about 250ms
-    float temperature = dht.readTemperature();
+    float temperature = dht.readTemperature();  //this blocks the main loop for about 250ms
 
-    printlnTCP(String(temperature));
+    unsigned long timestamp = computeTimestamp(timeLastTempReading);
+
+    sendDataToServer(timestamp, 'T', temperature);
   }
 
 #elif SENSOR_TYPE==DS18B20
@@ -171,40 +172,55 @@ void loop() {
   if(conversionStarted==true && currentTime-timeLastConvStart > 900){
     conversionStarted=false;
 
-    //compute unix timestamp for this temperature reading from timeLastConvStart
-    unsigned long timestamp = unixTimeLastSync+(unixTimeLastSyncMs+timeLastConvStart-timeLastTimeSync)/1000;
-    unsigned long timestampMs = (unixTimeLastSyncMs+timeLastConvStart-timeLastTimeSync)%1000;
-    if(timestampMs > 499)
-      timestamp++;
-
-    //get temperature reading
+    unsigned long timestamp = computeTimestamp(timeLastConvStart);
     float temperature = tempSensor.getTempCByIndex(0);
 
-    //send timestamp and reading to server
-    if(client.connect("192.168.1.5", 8005)){
-      client.write((byte)SENSOR_ID);  //1st byte = sensor id
-      client.write(timestamp);  //next 4 bytes = timestamp, LSB first, whole seconds only
-      client.write(timestamp>>8);
-      client.write(timestamp>>16);
-      client.write(timestamp>>24);
-      client.write('T');  //next byte = letter T
-      //from https://stackoverflow.com/questions/11136408/extract-bits-from-32-bit-float-numbers-in-c
-      client.write( ((byte*)&temperature)[0] ); //next 4 bytes = float of temperature, LSB first
-      client.write( ((byte*)&temperature)[1] );
-      client.write( ((byte*)&temperature)[2] );
-      client.write( ((byte*)&temperature)[3] );
-      client.flush();
-      delay(2); //wait to ensure data goes through TCP connection?
-      client.stop();
-    }
-    else{ //could not establish TCP connection to server
-      //TODO: log temperature and timestamp to file, to be sent later, when TCP connection can be established
-    }
+    sendDataToServer(timestamp, 'T', temperature);
   }
 #endif
 
 }
 
+
+/**Send measured data to server, to be stored in database.
+  timestamp = unix time of measurement
+  quantity = 'T' for temperature, 'H' for humidity
+  reading = the measurement value*/
+bool sendDataToServer(unsigned long timestamp, char quantity, float reading){
+  if(client.connect("192.168.1.5", 8005)){
+    client.write((byte)SENSOR_ID);  //1st byte = sensor id
+    client.write(timestamp);  //next 4 bytes = timestamp, LSB first, whole seconds only
+    client.write(timestamp>>8);
+    client.write(timestamp>>16);
+    client.write(timestamp>>24);
+    client.write(quantity);  //next byte = 'T' for temperature, or 'H' for humidity
+    //from https://stackoverflow.com/questions/11136408/extract-bits-from-32-bit-float-numbers-in-c
+    client.write( ((byte*)&reading)[0] ); //next 4 bytes = float of temperature, LSB first
+    client.write( ((byte*)&reading)[1] );
+    client.write( ((byte*)&reading)[2] );
+    client.write( ((byte*)&reading)[3] );
+    client.flush();
+    delay(2); //wait to ensure data goes through TCP connection?
+    client.stop();
+    return true;
+  }
+  else{ //could not establish TCP connection to server
+    //TODO: log temperature and timestamp to file in SPIFFS, to be sent later, when TCP connection can be established
+    return false;
+  }
+}
+
+
+/**Compute a unix timestamp from the time expressed as milliseconds from power-on*/
+unsigned long computeTimestamp(unsigned long timeMillis){
+  //compute unix timestamp for a reading
+  unsigned long timestamp = unixTimeLastSync+(unixTimeLastSyncMs+timeMillis-timeLastTimeSync)/1000;
+  unsigned long timestampMs = (unixTimeLastSyncMs+timeMillis-timeLastTimeSync)%1000;
+  if(timestampMs > 499)
+    timestamp++;
+
+  return timestamp;
+}
 
 
 /**Send a UDP datagram to the time server, requesting the current unix time be sent back.*/

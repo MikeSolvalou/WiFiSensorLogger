@@ -5,8 +5,10 @@ package io.github.mikesolvalou.wifisensorlogger;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.Socket;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -21,10 +23,8 @@ public class TCPDataReceiverThread extends Thread {
 	}
 
 	public void run() {
-		//open InputStream and OutputStream to send/receive bytes through Socket
-		try(OutputStream out = clientSocket.getOutputStream();	//might not need out
-				InputStream in = clientSocket.getInputStream() ){
-			
+		//open InputStream to receive bytes through Socket; clientSocket gets closed when in gets closed
+		try(InputStream in = clientSocket.getInputStream() ){
 			//WiFi module sends bytes, InputStream reads bytes
 			// 1 byte for sensor id
 			// next 4 bytes for unix time, whole seconds only, lsB first
@@ -39,7 +39,7 @@ public class TCPDataReceiverThread extends Thread {
 				bytes[bytesRead++] = (byte) nextByte;
 			}
 			
-			System.out.printf("Sensor data connection closed. remote address: %s, remote port: %d%n%n",
+			System.out.printf("Sensor data connection closed. remote address: %s, remote port: %d%n",
 					clientSocket.getInetAddress(), clientSocket.getPort());
 			
 			//indicate error if too many or too few bytes were sent
@@ -62,11 +62,11 @@ public class TCPDataReceiverThread extends Thread {
 			if(bytes[5]!='T')
 				throw new Exception("ERROR: unexpected character at bytes[5]: "+((char)(bytes[5])) );
 			
-			// temperature between 0 and 50
+			// temperature between 3 and 40
 			int floatBits = bytes[6] & 0x000000ff | bytes[7]<<8 & 0x0000ff00 |
 					bytes[8]<<16 & 0x00ff0000 | bytes[9]<<24 & 0xff000000;
 			float temperature = Float.intBitsToFloat(floatBits);
-			if(temperature<0 || temperature>50)
+			if(temperature<3 || temperature>40)
 				throw new Exception("ERROR: unexpected temperature: "+temperature+"C");
 			
 			// humidity between 0 and 1
@@ -76,8 +76,21 @@ public class TCPDataReceiverThread extends Thread {
 					ZonedDateTime.ofInstant(Instant.ofEpochSecond(timestamp), ZoneId.systemDefault()),
 					temperature, sensorId);
 			
+			
 			//if sensor id != 0, insert row into database
-			//TODO
+			try(Connection conn = DriverManager.getConnection("jdbc:sqlite:C:/sqlite/sensordata.sl3");
+					PreparedStatement pstmt = conn.prepareStatement(
+							"INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(?,?,?);")){
+				pstmt.setInt(1, sensorId);
+				pstmt.setInt(2, timestamp);
+				pstmt.setFloat(3, temperature);
+				int rowsModified = pstmt.executeUpdate();
+				
+				System.out.printf("Executed SQL:%n"
+						+ "INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(%d,%d,%f);%n%n"
+						+ "Rows modified: %d%n%n",
+						sensorId, timestamp, temperature, rowsModified);
+			}
 			
 			
 		}
@@ -87,5 +100,8 @@ public class TCPDataReceiverThread extends Thread {
 		catch (Exception e) {
 			e.printStackTrace();
 		}
+		//clientSocket closed
+		
+		
 	}
 }
