@@ -78,20 +78,21 @@ public class TCPDataReceiverThread extends Thread {
 			
 			
 			//if sensor id != 0, insert row into database
-			try(Connection conn = DriverManager.getConnection("jdbc:sqlite:C:/sqlite/sensordata.sl3");
-					PreparedStatement pstmt = conn.prepareStatement(
-							"INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(?,?,?);")){
-				pstmt.setInt(1, sensorId);
-				pstmt.setInt(2, timestamp);
-				pstmt.setFloat(3, temperature);
-				int rowsModified = pstmt.executeUpdate();
-				
-				System.out.printf("Executed SQL:%n"
-						+ "INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(%d,%d,%f);%n%n"
-						+ "Rows modified: %d%n%n",
-						sensorId, timestamp, temperature, rowsModified);
+			if(sensorId!=0) {
+				try(Connection conn = DriverManager.getConnection("jdbc:sqlite:C:/sqlite/sensordata.sl3");
+						PreparedStatement pstmt = conn.prepareStatement(
+								"INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(?,?,?);")){
+					pstmt.setInt(1, sensorId);
+					pstmt.setInt(2, timestamp);
+					pstmt.setFloat(3, temperature);
+					int rowsModified = pstmt.executeUpdate();
+					
+					System.out.printf("Executed SQL:%n"
+							+ "INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(%d,%d,%f);%n%n"
+							+ "Rows modified: %d%n%n",
+							sensorId, timestamp, temperature, rowsModified);
+				}
 			}
-			
 			
 		}
 		catch (IOException e) {

@@ -8,8 +8,8 @@
 
 
 //uncomment the type of sensor being used
-//#define SENSOR_TYPE DS18B20
-#define SENSOR_TYPE DHT11
+#define SENSOR_TYPE DS18B20
+//#define SENSOR_TYPE DHT11
 
 //set the ID number of this sensor; reserve 0 for testing
 // Used to link a measurement in the database to the hardware that made it.
@@ -17,7 +17,7 @@
 // Mounting the WiFi module too close to a temperature sensor (as done by ESP-01 compatible boards)
 // can add a few degrees C to the measurement, so mounting the WiFi module further away should count
 // as a hardware change, and get a different sensor id.
-#define SENSOR_ID 1
+#define SENSOR_ID 3
 
 
 #if SENSOR_TYPE==DHT11
@@ -53,6 +53,7 @@ byte lastTimeSyncVerif=0; //last number used as verification
 #if SENSOR_TYPE==DHT11
 DHT dht(2, DHT11);  //DHT-11 sensor connected on pin GPIO2
 unsigned long timeLastTempReading=0;  //time of last temperature reading, as ms since power on
+bool firstReadingDone=false;
 
 #elif SENSOR_TYPE==DS18B20
 OneWire oneWire(2); //represents onewire bus on GPIO2
@@ -148,10 +149,11 @@ void loop() {
 
 #if SENSOR_TYPE==DHT11
   //every 10s, get temperature, then send to server
-  if(currentTime-timeLastTempReading > 10000){
+  if(currentTime-timeLastTempReading > 60000 || !firstReadingDone){
     timeLastTempReading = currentTime;
 
     float temperature = dht.readTemperature();  //this blocks the main loop for about 250ms
+    firstReadingDone=true;
 
     unsigned long timestamp = computeTimestamp(timeLastTempReading);
 
@@ -160,7 +162,7 @@ void loop() {
 
 #elif SENSOR_TYPE==DS18B20
   //every 10s, start temperature A->D conversion
-  if(currentTime-timeLastConvStart > 10000 || !firstConversionStarted){
+  if(currentTime-timeLastConvStart > 60000 || !firstConversionStarted){
     timeLastConvStart = currentTime;
     
     tempSensor.requestTemperatures(); //asks all sensors on onewire bus to start A->D conversion
