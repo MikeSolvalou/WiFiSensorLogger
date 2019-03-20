@@ -6,9 +6,16 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.DefaultHandler;
+import org.eclipse.jetty.server.handler.HandlerList;
+import org.eclipse.jetty.server.handler.ResourceHandler;
+import org.eclipse.jetty.servlet.ServletHandler;
+
+
 public class Main {
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		
 		//if the db file doesn't exist, create a new one and create the tables
 		if(!(new File("C:/sqlite/sensordata.sl3").exists())) {
@@ -30,7 +37,21 @@ public class Main {
 
 		
 		//also start a jetty server to respond to http reqs for webpages and data?
+		// see https://www.eclipse.org/jetty/documentation/current/embedding-jetty.html
+		Server server = new Server(8004);
 		
+		ResourceHandler rh = new ResourceHandler();
+		rh.setDirectoriesListed(true);
+		rh.setWelcomeFiles(new String[]{ "index.html" });
+		rh.setResourceBase("web");
+		
+		ServletHandler sh = new ServletHandler();
+		//DataServlet handles any HTTP requests with path "/data.csv"
+		sh.addServletWithMapping(DataServlet.class, "/data.csv");
+		
+		server.setHandler(new HandlerList(rh, sh, new DefaultHandler()));
+		
+		server.start();
 	}
 	
 	
