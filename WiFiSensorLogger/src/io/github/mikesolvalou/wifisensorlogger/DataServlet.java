@@ -38,16 +38,15 @@ public class DataServlet extends HttpServlet {
 					"WHERE V.location=1;");
 			
 			//queries for all measurements from location 1 //TODO: add time filter, choose location from url query segment
-			ResultSet rs2=null;
-			
-			//start writing response body csv, print headings
-			// see bottom of https://commons.apache.org/proper/commons-csv/user-guide.html
-			final CSVPrinter printer = CSVFormat.DEFAULT
-					.withHeader("sensor", "timestamp", "temperature")
+			// start writing response body csv, print headings
+			//  see bottom of https://commons.apache.org/proper/commons-csv/user-guide.html
+			final CSVPrinter printer = CSVFormat.DEFAULT.withHeader("sensor", "timestamp", "temperature")	//TODO: extract headers from ResultSet object rs2
 					.print(response.getWriter());
 			
 			// run a query for each row of rs1
 			while(rs1.next()) {
+				ResultSet rs2=null;
+				
 				rs1.getInt("timeRemoved");
 				if(rs1.wasNull()) {	//if timeRemoved field is NULL
 					//run pstmt2
@@ -63,7 +62,7 @@ public class DataServlet extends HttpServlet {
 					rs2=pstmt1.executeQuery();
 				}
 				
-				//print rs2 as csv to HTTP reponse body
+				//print rs2 as csv to HTTP reponse body	//TODO: on first while-loop, extract column headers from rs2 ?
 				while(rs2.next()) {
 					printer.print(rs2.getInt("sensor"));
 					printer.print(rs2.getInt("timestamp"));
