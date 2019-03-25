@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>D3 Temperature Graph</title>
+<title>Google Charts Temperature Graph</title>
 </head>
 <body>
 <div id=controls>
@@ -17,9 +17,10 @@
   </fieldset>
 </div>
 
-<div><svg id=container width=800 height=600></svg></div>
+<div id=chart style='width: 800px; height: 600px;'></div>
 
-<script src=lib/d3.v4.min.js></script>
-<script src=d3scatter.js></script>
+<script src='lib/d3.v4.min.js'></script><!--still using for csv parsing-->
+<script src='https://www.gstatic.com/charts/loader.js'></script><!--for google charts-->
+<script src='googlechartsscatter.js'></script>
 </body>
 </html>

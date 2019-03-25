@@ -1,12 +1,6 @@
 //outline: initial setup, call update function, define update function, define helper functions for update, define widget handlers
 
 //initial setup
-// set default time bounds
-var now = new Date();
-var oneHourAgo = new Date(now.valueOf() - 3600000);
-document.getElementById('fromDate').value = dateToString(now);
-document.getElementById('toDate').value = dateToString(oneHourAgo);
-
 // convert Date object to string compatible with <input type=datetime-local> HTML element
 function dateToString(date){
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}\
@@ -111,6 +105,14 @@ function callback(error, data){
       .attr('y', innerHeight + 60)
       .attr('dy', '0.7ex')
       .text('Time');
+
+  //draw chart title
+  chart.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('x', innerWidth/2)
+      .attr('dy', '0.7ex')
+      .text('Temperature Log');
+
 
   //draw data points
   chart.append('g')
