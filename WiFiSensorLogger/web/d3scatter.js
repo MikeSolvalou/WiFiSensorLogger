@@ -42,7 +42,8 @@ update();
 //fetch any required data and redraw chart
 function update(){
   //using d3-request for AJAX; reference - https://github.com/d3/d3-request
-  d3.csv('/data.csv', rcf, callback); //TODO: include query segment in url to filter data by location and time; currently, just gets all the data for location 1
+  d3.csv(`/data.csv?loc=${document.getElementById('locationSelector').value}`, rcf, callback);
+  //TODO: time filter using url query segment
 }
 
 

@@ -9,7 +9,8 @@ google.charts.setOnLoadCallback(drawChart); //set callback function to be called
 //create and populate a DataTable, then draw a chart
 function drawChart(){
   //fetch data with d3-request
-  d3.csv('/data.csv', rcf, callback);
+  d3.csv(`/data.csv?loc=${document.getElementById('locationSelector').value}`, rcf, callback);
+  //TODO: time filter using url query segment
 
 
   //row conversion function for d3.csv
