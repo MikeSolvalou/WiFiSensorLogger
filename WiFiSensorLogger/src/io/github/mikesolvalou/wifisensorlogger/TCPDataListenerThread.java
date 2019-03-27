@@ -17,10 +17,10 @@ public class TCPDataListenerThread extends Thread {
 			
 			while(true) {
 				Socket clientSocket = serverSocket.accept();	//blocks until a connection request arrives
-				System.out.printf("Sensor data connection established, local address: %s, local port: %d, "+
+				/*System.out.printf("Sensor data connection established, local address: %s, local port: %d, "+
 						"remote address: %s, remote port: %d%n",
 						clientSocket.getLocalAddress(), clientSocket.getLocalPort(),
-						clientSocket.getInetAddress(), clientSocket.getPort() );
+						clientSocket.getInetAddress(), clientSocket.getPort() );*/
 				//create thread to deal with each incoming connection
 				new TCPDataReceiverThread(clientSocket).start();
 			}

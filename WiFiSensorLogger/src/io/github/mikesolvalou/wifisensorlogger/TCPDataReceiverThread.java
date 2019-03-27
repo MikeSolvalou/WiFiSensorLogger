@@ -39,8 +39,8 @@ public class TCPDataReceiverThread extends Thread {
 				bytes[bytesRead++] = (byte) nextByte;
 			}
 			
-			System.out.printf("Sensor data connection closed. remote address: %s, remote port: %d%n",
-					clientSocket.getInetAddress(), clientSocket.getPort());
+			/*System.out.printf("Sensor data connection closed. remote address: %s, remote port: %d%n",
+					clientSocket.getInetAddress(), clientSocket.getPort());*/
 			
 			//indicate error if too many or too few bytes were sent
 			if(bytesRead!=10)
@@ -88,7 +88,7 @@ public class TCPDataReceiverThread extends Thread {
 					int rowsModified = pstmt.executeUpdate();
 					
 					System.out.printf("Executed SQL:%n"
-							+ "INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(%d,%d,%f);%n%n"
+							+ "INSERT INTO Temperatures(sensor, timestamp, temperature) VALUES(%d,%d,%f);%n"
 							+ "Rows modified: %d%n%n",
 							sensorId, timestamp, temperature, rowsModified);
 				}
